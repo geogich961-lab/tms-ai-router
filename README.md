@@ -23,31 +23,27 @@ Dự án được thiết kế để chạy tốt trên TMS OS/Termux, Ubuntu/De
 
 ## Cài trực tiếp vào TMS OS
 
-Trên Termux của máy Android đang chạy TMS OS, chạy đúng **1 lệnh**:
+Trên **Termux của máy Android đang chạy TMS OS**, chạy đúng 1 lệnh:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/geogich961-lab/tms-ai-router/main/install-tms-os.sh)
 ```
 
-Installer sẽ tự:
+Installer tự xác nhận TMS OS, kiểm tra PHP 8 + SQLite3 + cURL + Sodium/OpenSSL, tải source, cài vào `~/websites/tms-ai-router`, giữ nguyên `storage` khi cập nhật, chọn port trống từ `8788`, nhận diện `fastcgi`/`php-http`, tạo Nginx site, chạy `nginx -t`, rollback cấu hình nếu lỗi, reload Nginx, kiểm tra `/health` và cuối cùng in URL LAN cho bạn mở Dashboard.
 
-- xác nhận máy đã có TMS OS;
-- kiểm tra PHP 8, SQLite3, cURL và Sodium/OpenSSL;
-- tải source mới nhất;
-- cài vào `~/websites/tms-ai-router`;
-- giữ nguyên thư mục `storage` khi cập nhật;
-- tự chọn port trống từ `8788` trở lên;
-- nhận diện PHP engine `fastcgi` hoặc `php-http` của TMS OS;
-- tạo `$PREFIX/etc/nginx/sites-enabled/tms-ai-router.conf`;
-- chạy `nginx -t`, rollback cấu hình nếu lỗi;
-- reload Nginx và kiểm tra `/health`;
-- in URL LAN để mở Dashboard.
-
-Có thể ép port khác:
+Muốn ép port riêng, ví dụ `8899`:
 
 ```bash
 TMS_AI_ROUTER_PORT=8899 bash <(curl -fsSL https://raw.githubusercontent.com/geogich961-lab/tms-ai-router/main/install-tms-os.sh)
 ```
+
+Sau khi cài xong, mở URL mà installer in ra, ví dụ:
+
+```text
+http://192.168.1.20:8788/
+```
+
+Lần đầu truy cập sẽ vào `/setup` để tạo tài khoản Admin.
 
 ## Cài trên Linux/Nginx thông thường
 
@@ -63,8 +59,6 @@ Sau đó trỏ document root của website vào:
 ```text
 /path/to/tms-ai-router/public
 ```
-
-Mở trang web và hoàn tất tài khoản quản trị đầu tiên.
 
 ## Sử dụng API
 
