@@ -3,9 +3,9 @@ declare(strict_types=1);
 foreach(['app/Core/App.php','app/Core/Auth.php','app/Core/Crypto.php','app/Services/ProviderService.php','app/Services/UsageService.php','app/Services/ClientKeyService.php','app/Services/GatewayService.php'] as$f)require dirname(__DIR__).'/'.$f;
 use TmsAi\Core\App;use TmsAi\Core\Auth;use TmsAi\Services\ProviderService;use TmsAi\Services\UsageService;use TmsAi\Services\ClientKeyService;use TmsAi\Services\GatewayService;
 try{App::boot();$providers=new ProviderService();$usage=new UsageService();$keys=new ClientKeyService();$gateway=new GatewayService($providers,$usage);$method=strtoupper($_SERVER['REQUEST_METHOD']??'GET');$path=App::routePath();
-if(!Auth::hasAdmin()&&!in_array($path,['/setup','/health'],true)){header('Location: /setup');exit;}
+if(!Auth::hasAdmin()&&!in_array($path,['/setup','/health'],true)){header('Location: /install.php');exit;}
 if($path==='/health')App::json(['ok'=>true,'name'=>App::config('name'),'version'=>App::config('version'),'time'=>time()]);
-if($path==='/setup'){if(Auth::hasAdmin()){header('Location: /');exit;}$error='';if($method==='POST'){App::verifyCsrf();if(Auth::setup((string)($_POST['username']??''),(string)($_POST['password']??''))){Auth::login((string)$_POST['username'],(string)$_POST['password']);header('Location: /');exit;}$error='Username tối thiểu 3 ký tự, password tối thiểu 8 ký tự.';}$csrf=App::csrf();require dirname(__DIR__).'/views/setup.php';exit;}
+if($path==='/setup'){if(Auth::hasAdmin()){header('Location: /');exit;}header('Location: /install.php');exit;}
 if($path==='/login'){if(Auth::loggedIn()){header('Location: /');exit;}$error='';if($method==='POST'){App::verifyCsrf();if(Auth::login((string)($_POST['username']??''),(string)($_POST['password']??''))){header('Location: /');exit;}$error='Sai username hoặc password.';}$csrf=App::csrf();require dirname(__DIR__).'/views/login.php';exit;}
 if($path==='/logout'&&$method==='POST'){Auth::logout();header('Location: /login');exit;}
 if($path==='/v1/models'&&$method==='GET'){Auth::requireClientKey();App::json(['object'=>'list','data'=>$providers->publicModels()]);}
