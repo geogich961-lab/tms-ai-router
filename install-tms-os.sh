@@ -1,196 +1,227 @@
 #!/data/data/com.termux/files/usr/bin/bash
-set -euo pipefail
+set -Eeuo pipefail
 
 REPO="${TMS_AI_ROUTER_REPO:-geogich961-lab/tms-ai-router}"
 REF="${TMS_AI_ROUTER_REF:-main}"
-PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
 HOME="${HOME:-/data/data/com.termux/files/home}"
-NAME="tms-ai-router"
-TARGET="$HOME/websites/$NAME"
-SITES_DIR="$PREFIX/etc/nginx/sites-enabled"
-CONF="$SITES_DIR/$NAME.conf"
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+TARGET="${TMS_AI_ROUTER_HOME:-$HOME/websites/tms-ai-router}"
+SITES="$PREFIX/etc/nginx/sites-enabled"
+NGINX_CONF="$SITES/tms-ai-router.conf"
 TMS_ROOT="$HOME/tms-os"
-WORK="$HOME/.tms-ai-router-installer-$$"
+STATE="$HOME/.tms-os"
 BACKUP_ROOT="$HOME/.tms-ai-router-backups"
-ARCHIVE="$WORK/source.zip"
-STAGE="$WORK/stage"
-PORT="${TMS_AI_ROUTER_PORT:-}"
-
-cleanup(){ rm -rf "$WORK" 2>/dev/null || true; }
-trap cleanup EXIT
+WORK="$HOME/.tms-ai-router-installer-$$"
+PORT="${TMS_AI_ROUTER_PORT:-8788}"
 
 say(){ printf '%s\n' "$*"; }
 fail(){ say "[LỖI] $*" >&2; exit 1; }
+cleanup(){ rm -rf "$WORK" 2>/dev/null || true; }
+trap cleanup EXIT
 
-say '============================================='
-say ' TMS AI Router — Installer dành cho TMS OS'
-say '============================================='
+say ""
+say "============================================"
+say " TMS AI Router — Installer for TMS OS"
+say "============================================"
 
-[ -d "$TMS_ROOT" ] || fail "Không phát hiện TMS OS tại $TMS_ROOT"
-[ -d "$SITES_DIR" ] || mkdir -p "$SITES_DIR"
-for c in php nginx curl unzip; do command -v "$c" >/dev/null 2>&1 || fail "Thiếu lệnh: $c"; done
+[ -d "$TMS_ROOT" ] || fail "Không tìm thấy TMS OS tại $TMS_ROOT. Hãy cài TMS OS trước."
+[ -x "$TMS_ROOT/scripts/start-tms.sh" ] || fail "TMS OS thiếu scripts/start-tms.sh."
+command -v php >/dev/null 2>&1 || fail "Không tìm thấy PHP."
+command -v nginx >/dev/null 2>&1 || fail "Không tìm thấy Nginx."
+command -v curl >/dev/null 2>&1 || fail "Không tìm thấy cURL."
+command -v unzip >/dev/null 2>&1 || fail "Không tìm thấy unzip."
 
-php -r 'if(PHP_VERSION_ID<80000){fwrite(STDERR,"PHP 8.0+ required\n");exit(1);} if(!class_exists("SQLite3")){fwrite(STDERR,"SQLite3 extension missing\n");exit(2);} if(!function_exists("curl_init")){fwrite(STDERR,"cURL extension missing\n");exit(3);} if(!function_exists("sodium_crypto_secretbox")&&!function_exists("openssl_encrypt")){fwrite(STDERR,"Sodium/OpenSSL missing\n");exit(4);}' \
-  || fail 'PHP của máy chưa đủ SQLite3 + cURL + Sodium/OpenSSL.'
+PHP_VERSION_ID="$(php -r 'echo PHP_VERSION_ID;' 2>/dev/null || echo 0)"
+[ "$PHP_VERSION_ID" -ge 80000 ] || fail "Cần PHP 8.0+."
+php -r 'exit(class_exists("SQLite3") ? 0 : 1);' || fail "PHP SQLite3 chưa khả dụng."
+php -r 'exit(function_exists("curl_init") ? 0 : 1);' || fail "PHP cURL chưa khả dụng."
+php -r 'exit(function_exists("sodium_crypto_secretbox") || function_exists("openssl_encrypt") ? 0 : 1);' || fail "Cần PHP Sodium hoặc OpenSSL để mã hóa API key."
 
-mkdir -p "$WORK" "$BACKUP_ROOT" "$HOME/websites"
+mkdir -p "$WORK" "$BACKUP_ROOT" "$SITES" "$HOME/websites"
 
-say '[1/6] Tải source TMS AI Router...'
+if [ ! -f "$NGINX_CONF" ]; then
+  while :; do
+    if php -r '$p=(int)$argv[1];$e=0;$s=@stream_socket_server("tcp://0.0.0.0:".$p,$e,$m);if($s){fclose($s);exit(0);}exit(1);' "$PORT"; then
+      break
+    fi
+    PORT=$((PORT + 1))
+    [ "$PORT" -le 8798 ] || fail "Không tìm thấy cổng trống trong dải 8788-8798."
+  done
+else
+  EXISTING_PORT="$(sed -nE 's/.*listen[[:space:]]+0\.0\.0\.0:([0-9]+).*/\1/p' "$NGINX_CONF" | head -n1 || true)"
+  [ -n "$EXISTING_PORT" ] && PORT="$EXISTING_PORT"
+fi
+
+say "[1/6] Tải source $REPO@$REF ..."
+ZIP="$WORK/source.zip"
 URL="https://github.com/${REPO}/archive/refs/heads/${REF}.zip"
-curl -fL --connect-timeout 20 --max-time 240 --retry 2 --retry-delay 2 -o "$ARCHIVE" "$URL" \
-  || fail 'Không tải được source từ GitHub.'
-unzip -q "$ARCHIVE" -d "$WORK"
-SRC="$(find "$WORK" -mindepth 1 -maxdepth 1 -type d -name 'tms-ai-router-*' | head -n1)"
-[ -n "$SRC" ] && [ -f "$SRC/public/index.php" ] || fail 'Gói source không hợp lệ.'
+if ! curl -fLsS -4 --http1.1 --connect-timeout 20 --max-time 240 --retry 2 -o "$ZIP" "$URL"; then
+  curl -fLsS --connect-timeout 20 --max-time 240 --retry 2 -o "$ZIP" "$URL" || fail "Không tải được source từ GitHub."
+fi
+unzip -q "$ZIP" -d "$WORK/extract"
+SRC="$(find "$WORK/extract" -maxdepth 3 -type f -path '*/public/index.php' -print | head -n1 | xargs -r dirname | xargs -r dirname)"
+[ -n "$SRC" ] && [ -d "$SRC/app" ] && [ -d "$SRC/public" ] || fail "Source tải về không đúng cấu trúc."
 
-say '[2/6] Kiểm tra PHP source...'
-while IFS= read -r f; do php -l "$f" >/dev/null || fail "PHP syntax error: $f"; done < <(find "$SRC" -type f -name '*.php' | sort)
+say "[2/6] Kiểm tra source PHP ..."
+while IFS= read -r -d '' f; do
+  php -l "$f" >/dev/null || fail "PHP syntax error: $f"
+done < <(find "$SRC" -type f -name '*.php' -print0)
 
-mkdir -p "$STAGE"
-cp -a "$SRC"/. "$STAGE"/
-rm -rf "$STAGE/.git" 2>/dev/null || true
-mkdir -p "$STAGE/storage/secure" "$STAGE/storage/logs" "$STAGE/storage/cache"
-chmod 700 "$STAGE/storage" "$STAGE/storage/secure" "$STAGE/storage/logs" "$STAGE/storage/cache" 2>/dev/null || true
-
-say '[3/6] Chuẩn bị dữ liệu và cập nhật an toàn...'
-TS="$(date +%Y%m%d-%H%M%S)"
-OLD_BACKUP=""
+STAMP="$(date +%Y%m%d_%H%M%S)"
 if [ -d "$TARGET" ]; then
-  OLD_BACKUP="$BACKUP_ROOT/$NAME-$TS"
-  mv "$TARGET" "$OLD_BACKUP"
-  if [ -d "$OLD_BACKUP/storage" ]; then
-    rm -rf "$STAGE/storage"
-    cp -a "$OLD_BACKUP/storage" "$STAGE/storage"
-  fi
+  say "[3/6] Nâng cấp bản hiện có — sao lưu dữ liệu runtime ..."
+  mkdir -p "$BACKUP_ROOT/$STAMP"
+  [ -d "$TARGET/storage" ] && cp -a "$TARGET/storage" "$BACKUP_ROOT/$STAMP/storage"
+else
+  say "[3/6] Cài mới ..."
 fi
-mv "$STAGE" "$TARGET"
-chmod +x "$TARGET/scripts/"*.sh "$TARGET/install-tms-os.sh" 2>/dev/null || true
 
-if ! php -r 'require $argv[1]."/app/Core/App.php"; \TmsAi\Core\App::boot(); echo "OK\n";' "$TARGET" >/dev/null; then
+RUNTIME_TMP="$WORK/runtime-preserve"
+if [ -d "$TARGET/storage" ]; then
+  mv "$TARGET/storage" "$RUNTIME_TMP"
+fi
+
+rm -rf "$TARGET.new"
+mkdir -p "$TARGET.new"
+cp -a "$SRC/." "$TARGET.new/"
+rm -rf "$TARGET.new/storage"
+if [ -d "$RUNTIME_TMP" ]; then
+  mv "$RUNTIME_TMP" "$TARGET.new/storage"
+else
+  mkdir -p "$TARGET.new/storage/secure" "$TARGET.new/storage/logs" "$TARGET.new/storage/cache"
+  touch "$TARGET.new/storage/.gitkeep" "$TARGET.new/storage/secure/.gitkeep" "$TARGET.new/storage/logs/.gitkeep" "$TARGET.new/storage/cache/.gitkeep"
+fi
+chmod 700 "$TARGET.new/storage" "$TARGET.new/storage/secure" "$TARGET.new/storage/logs" "$TARGET.new/storage/cache" 2>/dev/null || true
+
+OLD_TARGET=""
+if [ -d "$TARGET" ]; then
+  OLD_TARGET="$TARGET.old-$STAMP"
+  mv "$TARGET" "$OLD_TARGET"
+fi
+mv "$TARGET.new" "$TARGET"
+
+say "[4/6] Khởi tạo SQLite ..."
+if ! php -r 'require $argv[1]."/app/Core/App.php"; \TmsAi\Core\App::boot(); echo "ok";' "$TARGET" >/dev/null; then
   rm -rf "$TARGET"
-  [ -n "$OLD_BACKUP" ] && mv "$OLD_BACKUP" "$TARGET"
-  fail 'Không khởi tạo được SQLite/database. Đã rollback source.'
+  [ -n "$OLD_TARGET" ] && [ -d "$OLD_TARGET" ] && mv "$OLD_TARGET" "$TARGET"
+  fail "Không khởi tạo được database. Bản cũ đã được khôi phục."
 fi
-
-port_used(){
-  local p="$1"
-  grep -RqsE "listen[[:space:]]+(0\.0\.0\.0:)?${p}[[:space:]]*;" "$SITES_DIR" 2>/dev/null && return 0
-  if command -v ss >/dev/null 2>&1; then ss -ltn 2>/dev/null | grep -qE "[:.]${p}[[:space:]]" && return 0; fi
-  return 1
-}
-if [ -z "$PORT" ]; then
-  for p in $(seq 8788 8810); do if ! port_used "$p"; then PORT="$p"; break; fi; done
-fi
-[[ "$PORT" =~ ^[0-9]+$ ]] || fail 'Port không hợp lệ.'
-[ "$PORT" -ge 1024 ] && [ "$PORT" -le 65535 ] || fail 'Port phải từ 1024 đến 65535.'
-if port_used "$PORT" && [ ! -f "$CONF" ]; then fail "Port $PORT đang được sử dụng."; fi
 
 ENGINE="fastcgi"
-POLICY="$HOME/.tms-os/php-engine-policy"
-if [ -r "$POLICY" ]; then ENGINE="$(cat "$POLICY" 2>/dev/null || true)"; fi
 if [ -x "$TMS_ROOT/scripts/tms-php-engine.sh" ]; then
-  detected="$(bash "$TMS_ROOT/scripts/tms-php-engine.sh" status 2>/dev/null || true)"
-  [ "$detected" = 'php-http' ] || [ "$detected" = 'fastcgi' ] && ENGINE="$detected"
+  DETECTED="$(bash "$TMS_ROOT/scripts/tms-php-engine.sh" status 2>/dev/null || true)"
+  case "$DETECTED" in php-http|fastcgi) ENGINE="$DETECTED" ;; esac
+elif [ -f "$STATE/php-engine-policy" ]; then
+  DETECTED="$(cat "$STATE/php-engine-policy" 2>/dev/null || true)"
+  case "$DETECTED" in php-http|fastcgi) ENGINE="$DETECTED" ;; esac
 fi
-case "$ENGINE" in fastcgi|php-http) ;; *) ENGINE='fastcgi' ;; esac
 
-say "[4/6] Tạo Nginx site (port $PORT, PHP engine: $ENGINE)..."
+say "[5/6] Tạo Nginx site trên cổng $PORT (engine: $ENGINE) ..."
 CONF_BACKUP=""
-if [ -f "$CONF" ]; then CONF_BACKUP="$BACKUP_ROOT/$NAME-nginx-$TS.conf"; cp "$CONF" "$CONF_BACKUP"; fi
+if [ -f "$NGINX_CONF" ]; then
+  CONF_BACKUP="$WORK/tms-ai-router.conf.backup"
+  cp "$NGINX_CONF" "$CONF_BACKUP"
+fi
 
-if [ "$ENGINE" = 'php-http' ]; then
-cat > "$CONF" <<EOF
+if [ "$ENGINE" = "php-http" ]; then
+cat > "$NGINX_CONF" <<NGINX
 server {
-    listen 0.0.0.0:$PORT;
+    listen 0.0.0.0:${PORT};
     server_name _;
-    root $TARGET/public;
+    root ${TARGET}/public;
     index index.php index.html;
-    client_max_body_size 8M;
-
+    access_log ${HOME}/logs/nginx/tms-ai-router-access.log tms_access;
+    error_log ${HOME}/logs/nginx/tms-ai-router-error.log;
     location / {
-        try_files \$uri \$uri/ @tms_ai_router_php;
-    }
-
-    location @tms_ai_router_php {
-        proxy_set_header X-TMS-Root \$document_root;
+        proxy_pass http://127.0.0.1:9000;
+        proxy_request_buffering off;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
         proxy_set_header Host \$host;
+        proxy_set_header X-TMS-Root ${TARGET}/public;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_read_timeout 180s;
-        proxy_send_timeout 180s;
-        proxy_pass http://127.0.0.1:9000;
     }
-
-    location ~ \.php$ {
-        proxy_set_header X-TMS-Root \$document_root;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_read_timeout 180s;
-        proxy_send_timeout 180s;
-        proxy_pass http://127.0.0.1:9000;
+    location ~* \.(css|js|jpg|jpeg|png|gif|webp|ico|svg|woff2?|ttf|eot)$ {
+        expires 1h;
+        add_header Cache-Control "public";
+        access_log off;
     }
-
     location ~ /\. { deny all; }
 }
-EOF
+NGINX
 else
-cat > "$CONF" <<EOF
+cat > "$NGINX_CONF" <<NGINX
 server {
-    listen 0.0.0.0:$PORT;
+    listen 0.0.0.0:${PORT};
     server_name _;
-    root $TARGET/public;
+    root ${TARGET}/public;
     index index.php index.html;
-    client_max_body_size 8M;
-
+    access_log ${HOME}/logs/nginx/tms-ai-router-access.log tms_access;
+    error_log ${HOME}/logs/nginx/tms-ai-router-error.log;
     location / {
         try_files \$uri \$uri/ /index.php?\$query_string;
     }
-
     location ~ \.php$ {
+        try_files \$uri =404;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
         fastcgi_param HTTP_AUTHORIZATION \$http_authorization;
-        fastcgi_read_timeout 180s;
-        fastcgi_send_timeout 180s;
+        fastcgi_read_timeout 300s;
+        fastcgi_send_timeout 300s;
         fastcgi_pass 127.0.0.1:9000;
     }
-
+    location ~* \.(css|js|jpg|jpeg|png|gif|webp|ico|svg|woff2?|ttf|eot)$ {
+        expires 1h;
+        add_header Cache-Control "public";
+        access_log off;
+    }
     location ~ /\. { deny all; }
 }
-EOF
+NGINX
 fi
 
-say '[5/6] Kiểm tra và reload Nginx...'
+mkdir -p "$HOME/logs/nginx"
 if ! nginx -t >/dev/null 2>&1; then
-  rm -f "$CONF"
-  [ -n "$CONF_BACKUP" ] && cp "$CONF_BACKUP" "$CONF"
-  nginx -t >/dev/null 2>&1 || true
-  fail 'Nginx config không hợp lệ. Đã rollback cấu hình.'
+  [ -n "$CONF_BACKUP" ] && cp "$CONF_BACKUP" "$NGINX_CONF" || rm -f "$NGINX_CONF"
+  rm -rf "$TARGET"
+  [ -n "$OLD_TARGET" ] && [ -d "$OLD_TARGET" ] && mv "$OLD_TARGET" "$TARGET"
+  fail "Nginx config không hợp lệ. Đã rollback."
 fi
-nginx -s reload >/dev/null 2>&1 || nginx >/dev/null 2>&1 || fail 'Không reload/start được Nginx.'
 
-say '[6/6] Kiểm tra health endpoint...'
-OK=0
+if nginx -s reload >/dev/null 2>&1; then
+  :
+else
+  bash "$TMS_ROOT/scripts/start-tms.sh" >/dev/null 2>&1 || fail "Không thể reload/start TMS OS sau khi cài."
+fi
+
+rm -rf "$OLD_TARGET" 2>/dev/null || true
+
+say "[6/6] Kiểm tra dịch vụ ..."
+LOCAL_OK=0
 for _ in 1 2 3 4 5; do
-  if curl -fsS --max-time 5 "http://127.0.0.1:$PORT/health" | grep -q '"ok":true'; then OK=1; break; fi
+  if curl -fsS --max-time 4 "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
+    LOCAL_OK=1
+    break
+  fi
   sleep 1
 done
 
-LAN_IP=""
-if command -v ip >/dev/null 2>&1; then LAN_IP="$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1);exit}}')"; fi
-[ -n "$LAN_IP" ] || LAN_IP="127.0.0.1"
+LAN_IP="$(php -r '$s=@socket_create(AF_INET,SOCK_DGRAM,SOL_UDP);if($s){@socket_connect($s,"8.8.8.8",53);@socket_getsockname($s,$a);@socket_close($s);}if(!empty($a)&&$a!=="0.0.0.0"){echo $a;exit;}$r=@shell_exec("ip route 2>/dev/null");if(preg_match("/src ([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)/",$r,$m)){echo $m[1];exit;}$g=trim((string)@shell_exec("getprop dhcp.wlan0.ipaddress 2>/dev/null"));echo preg_match("/^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$/",$g)?$g:"127.0.0.1";' 2>/dev/null || echo 127.0.0.1)"
 
-say ''
-say '============================================='
-if [ "$OK" -eq 1 ]; then say ' [OK] TMS AI Router đã cài thành công!'; else say ' [CẢNH BÁO] Đã cài nhưng health check chưa phản hồi.'; fi
-say " Thư mục: $TARGET"
-say " Nginx:    $CONF"
-say " Port:     $PORT"
-say " Truy cập: http://$LAN_IP:$PORT/"
-say " Health:   http://$LAN_IP:$PORT/health"
-[ -n "$OLD_BACKUP" ] && say " Backup bản cũ: $OLD_BACKUP"
-say '============================================='
-say 'Lần đầu mở trang, hệ thống sẽ yêu cầu tạo tài khoản Admin.'
+say ""
+say "============================================"
+if [ "$LOCAL_OK" -eq 1 ]; then
+  say " [OK] TMS AI Router đã cài thành công!"
+else
+  say " [CẢNH BÁO] Đã cài xong nhưng health-check chưa phản hồi."
+  say " Hãy chạy: bash ~/tms-os/scripts/start-tms.sh"
+fi
+say " Local : http://127.0.0.1:${PORT}"
+say " LAN   : http://${LAN_IP}:${PORT}"
+say " Source: ${TARGET}"
+say " Nginx : ${NGINX_CONF}"
+say " Engine: ${ENGINE}"
+say "============================================"
+say ""
+say "Lần đầu mở URL trên, hệ thống sẽ chuyển tới /setup để tạo tài khoản admin."
