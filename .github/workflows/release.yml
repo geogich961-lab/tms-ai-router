@@ -1,0 +1,50 @@
+name: Publish TMS AI Router Release
+
+on:
+  push:
+    branches: [main]
+    paths: ['VERSION', '.github/workflows/release.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(tr -d '\r\n ' < VERSION)"
+          test -n "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Verify PHP syntax
+        run: find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Publish release if missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          TAG="v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists."
+            exit 0
+          fi
+          cat > /tmp/release-notes.md <<EOF
+          TMS AI Router ${TAG}
+
+          ## Highlights
+          - New responsive router dashboard for desktop and mobile.
+          - SSE streaming for OpenAI-compatible chat completions.
+          - Added /v1/responses support.
+          - Native Anthropic Messages and Gemini generateContent adapters.
+          - Routing strategy controls in the dashboard.
+          - In-app Hot Update Center with code backup and persistent storage protection.
+
+          Existing v1.0.x installs require one manual source overwrite to reach v1.1.0. From v1.1.0 onward, future releases can be installed from Dashboard → Updates.
+          EOF
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "TMS AI Router ${TAG}" --notes-file /tmp/release-notes.md
