@@ -1,0 +1,71 @@
+# TMS AI Router
+
+TMS AI Router là AI gateway nhẹ chạy độc lập bằng **PHP 8 + SQLite + Vanilla JS**.
+Dự án được thiết kế để chạy tốt trên TMS OS/Termux, Ubuntu/Debian, Nginx hoặc Apache.
+
+## Tính năng v1.0.0
+
+- Dashboard theo dõi request, input/output/total token.
+- Quản lý nhiều provider/account.
+- OpenAI-compatible gateway:
+  - `GET /v1/models`
+  - `POST /v1/chat/completions`
+- Routing: priority, round-robin, least-used, quota-first.
+- Fallback tự động khi provider lỗi/429/5xx.
+- API key nội bộ dạng `tms_...`, chỉ lưu hash SHA-256.
+- Quota window: 5 giờ, ngày, tuần, tháng hoặc custom.
+- Countdown reset trực tiếp trên dashboard.
+- Theo dõi token từng provider/account.
+- SQLite WAL + busy timeout.
+- Provider secret được mã hóa bằng Sodium hoặc OpenSSL.
+- Không lưu prompt/response đầy đủ mặc định.
+- Không cần Composer, Node.js, Docker.
+
+## Yêu cầu
+
+- PHP 8.0+
+- PHP SQLite3
+- PHP cURL
+- Khuyến nghị PHP Sodium hoặc OpenSSL
+- Nginx/Apache
+
+## Cài nhanh
+
+```bash
+git clone https://github.com/geogich961-lab/tms-ai-router.git
+cd tms-ai-router
+chmod +x scripts/install.sh
+./scripts/install.sh
+```
+
+Sau đó trỏ document root của website vào thư mục:
+
+```text
+/path/to/tms-ai-router/public
+```
+
+Mở trang web và hoàn tất tài khoản quản trị đầu tiên.
+
+## Sử dụng API
+
+Tạo Client API Key trong dashboard, sau đó cấu hình ứng dụng AI:
+
+```text
+Base URL: https://ai.example.com/v1
+API Key:  tms_xxxxxxxxx
+```
+
+## Provider
+
+Bản v1 hỗ trợ trực tiếp các endpoint có giao thức OpenAI-compatible, ví dụ OpenAI, OpenRouter và nhiều gateway/self-hosted khác.
+
+Anthropic/Gemini native adapter, Responses API translation, Embeddings/TTS/STT/Image/Video/Web Search được chừa kiến trúc để mở rộng ở các phiên bản sau.
+
+## Bảo mật
+
+- Không commit `storage/`.
+- Provider API key được mã hóa.
+- Client API key chỉ lưu hash.
+- Prompt/response không lưu mặc định.
+- Admin POST dùng CSRF.
+- Hãy dùng HTTPS khi expose ra Internet.
