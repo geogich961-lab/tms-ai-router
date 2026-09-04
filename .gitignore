@@ -1,0 +1,12 @@
+storage/*.sqlite3
+storage/*.sqlite3-*
+storage/secure/*
+storage/logs/*
+storage/cache/*
+!storage/.gitkeep
+!storage/secure/.gitkeep
+!storage/logs/.gitkeep
+!storage/cache/.gitkeep
+.env
+.DS_Store
+Thumbs.db
