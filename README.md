@@ -3,7 +3,7 @@
 TMS AI Router là AI gateway nhẹ chạy độc lập bằng **PHP 8 + SQLite + Vanilla JS**.
 Dự án được thiết kế để chạy tốt trên TMS OS/Termux, Ubuntu/Debian, Nginx hoặc Apache.
 
-## Tính năng v1.0.0
+## Tính năng v1.0.1
 
 - Dashboard theo dõi request, input/output/total token.
 - Quản lý nhiều provider/account.
@@ -20,10 +20,57 @@ Dự án được thiết kế để chạy tốt trên TMS OS/Termux, Ubuntu/De
 - Provider secret được mã hóa bằng Sodium hoặc OpenSSL.
 - Không lưu prompt/response đầy đủ mặc định.
 - Không cần Composer, Node.js, Docker.
+- Có `public/install.php` để cài trực tiếp bằng trình duyệt khi upload như website bình thường.
+- Có `.htaccess` cho Apache front-controller.
 
-## Cài trực tiếp vào TMS OS
+## Cài như một website bình thường trên TMS OS
 
-Trên **Termux của máy Android đang chạy TMS OS**, chạy đúng 1 lệnh:
+Đây là cách đơn giản nhất nếu bạn đang quản lý TMS OS từ xa qua giao diện web.
+
+1. Tải source của repo và upload toàn bộ vào một thư mục, ví dụ:
+
+```text
+~/websites/tms-ai-router/
+```
+
+2. Trong mục **Website** của TMS OS, tạo website mới và đặt **Document Root** vào:
+
+```text
+~/websites/tms-ai-router/public
+```
+
+3. Website cần dùng PHP 8.x và có các extension:
+
+```text
+SQLite3
+cURL
+Sodium hoặc OpenSSL
+```
+
+4. Mở domain/URL của website. Nếu chưa cài, TMS AI Router sẽ tự chuyển tới:
+
+```text
+/install.php
+```
+
+5. `install.php` sẽ tự:
+
+- Kiểm tra PHP >= 8.0.
+- Kiểm tra SQLite3, cURL và Sodium/OpenSSL.
+- Kiểm tra các file hệ thống bắt buộc.
+- Tạo `storage/`, `storage/secure/`, `storage/logs/`, `storage/cache/`.
+- Khởi tạo SQLite database và toàn bộ schema.
+- Tạo tài khoản Admin đầu tiên.
+- Đăng nhập Admin tự động sau khi cài xong.
+- Tạo `storage/install.lock` để ghi nhận thông tin cài đặt.
+
+Sau khi hoàn tất, mở Dashboard tại `/`.
+
+> Bảo mật: Document Root phải là thư mục `public/`. Không trỏ website trực tiếp vào thư mục gốc của project vì `config/`, `database/`, `storage/` và mã nguồn backend không nên public trực tiếp.
+
+## Cài trực tiếp vào TMS OS bằng Termux
+
+Nếu có quyền truy cập Termux của máy Android đang chạy TMS OS, có thể chạy đúng 1 lệnh:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/geogich961-lab/tms-ai-router/main/install-tms-os.sh)
@@ -36,14 +83,6 @@ Muốn ép port riêng, ví dụ `8899`:
 ```bash
 TMS_AI_ROUTER_PORT=8899 bash <(curl -fsSL https://raw.githubusercontent.com/geogich961-lab/tms-ai-router/main/install-tms-os.sh)
 ```
-
-Sau khi cài xong, mở URL mà installer in ra, ví dụ:
-
-```text
-http://192.168.1.20:8788/
-```
-
-Lần đầu truy cập sẽ vào `/setup` để tạo tài khoản Admin.
 
 ## Cài trên Linux/Nginx thông thường
 
@@ -60,12 +99,14 @@ Sau đó trỏ document root của website vào:
 /path/to/tms-ai-router/public
 ```
 
+Nginx cần dùng front controller (`try_files ... /index.php`) để các route như `/v1/models` và `/v1/chat/completions` đi vào `public/index.php`.
+
 ## Sử dụng API
 
 Tạo Client API Key trong dashboard, sau đó cấu hình ứng dụng AI:
 
 ```text
-Base URL: http://IP-CUA-TMS-OS:PORT/v1
+Base URL: https://domain-cua-ban/v1
 API Key:  tms_xxxxxxxxx
 ```
 
@@ -83,3 +124,4 @@ Anthropic/Gemini native adapter, Responses API translation, Embeddings/TTS/STT/I
 - Prompt/response không lưu mặc định.
 - Admin POST dùng CSRF.
 - Hãy dùng HTTPS khi expose ra Internet.
+- Website chỉ nên expose thư mục `public/`.
