@@ -2,7 +2,7 @@ name: TMS AI Router CI
 
 on:
   push:
-    branches: [main, 'feat/**']
+    branches: [main, 'feat/**', 'hotfix/**']
   pull_request:
 
 permissions:
@@ -20,15 +20,18 @@ jobs:
           extensions: sqlite3, curl, sodium, zip
       - name: PHP syntax
         run: find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
-      - name: Validate v1.1.0 surface
+      - name: Validate v1.1.1 surface
         shell: bash
         run: |
-          grep -qx '1.1.0' VERSION
-          grep -q "'version' => '1.1.0'" config/app.php
+          grep -qx '1.1.1' VERSION
+          grep -q "'version' => '1.1.1'" config/app.php
           grep -q "'/v1/responses'" public/index.php
           grep -q "'/admin/api/update/check'" public/index.php
           grep -q "'/admin/api/update/apply'" public/index.php
+          grep -q "getUpdatePayload" public/assets/app.js
+          grep -q 'data-version=' views/dashboard.php
+          grep -q 'app.js?v=' views/dashboard.php
+          grep -q "class UpdateService" app/Services/UpdateService.php
           grep -q "streamChat" app/Services/GatewayService.php
           grep -q "'anthropic'" app/Services/GatewayService.php
           grep -q "'gemini'" app/Services/GatewayService.php
-          grep -q "class UpdateService" app/Services/UpdateService.php

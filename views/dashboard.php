@@ -5,12 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b1020">
 <title>TMS AI Router</title>
-<link rel="stylesheet" href="/assets/app.css?v=1.1.0">
+<?php $appVersion = (string)\TmsAi\Core\App::config('version','0.0.0'); ?>
+<link rel="stylesheet" href="/assets/app.css?v=<?=htmlspecialchars($appVersion,ENT_QUOTES)?>">
 </head>
-<body data-csrf="<?=htmlspecialchars($csrf,ENT_QUOTES)?>">
+<body data-csrf="<?=htmlspecialchars($csrf,ENT_QUOTES)?>" data-version="<?=htmlspecialchars($appVersion,ENT_QUOTES)?>">
 <div class="app-shell">
     <aside class="sidebar" id="sidebar">
-        <div class="brand"><div class="brand-logo">T</div><div><strong>TMS AI Router</strong><small>v1.1.0</small></div></div>
+        <div class="brand"><div class="brand-logo">T</div><div><strong>TMS AI Router</strong><small>v<?=htmlspecialchars($appVersion)?></small></div></div>
         <nav class="nav">
             <button class="nav-item active" data-target="overview"><span>◫</span>Overview</button>
             <button class="nav-item" data-target="providers"><span>◇</span>Providers</button>
@@ -22,7 +23,7 @@
     </aside>
     <div class="backdrop" id="sidebarBackdrop"></div>
     <main class="content">
-        <header class="mobile-head"><button id="menuToggle" class="icon-btn">☰</button><div><strong>TMS AI Router</strong><small>v1.1.0</small></div><span class="online-pill">Online</span></header>
+        <header class="mobile-head"><button id="menuToggle" class="icon-btn">☰</button><div><strong>TMS AI Router</strong><small>v<?=htmlspecialchars($appVersion)?></small></div><span class="online-pill">Online</span></header>
 
         <section class="page active" id="overview">
             <div class="page-head"><div><p class="eyebrow">ROUTER OVERVIEW</p><h1>AI Gateway Dashboard</h1><p class="sub">Theo dõi token, quota và trạng thái provider theo thời gian thực.</p></div><div class="api-chip"><span>API</span><code>/v1</code></div></div>
@@ -63,7 +64,7 @@
 
         <section class="page" id="updates">
             <div class="page-head"><div><p class="eyebrow">HOT UPDATE</p><h1>Update Center</h1><p class="sub">Kiểm tra và cập nhật trực tiếp từ GitHub, không cần cài lại.</p></div></div>
-            <section class="panel update-card"><div class="version-box"><span>Phiên bản hiện tại</span><b>v1.1.0</b><small>Stable channel · GitHub Releases</small></div><div class="update-info" id="updateInfo"><h2>Sẵn sàng kiểm tra cập nhật</h2><p>TMS AI Router sẽ giữ nguyên SQLite, master key và toàn bộ thư mục <code>storage/</code>.</p><div class="update-actions"><button class="primary" id="checkUpdate">Kiểm tra cập nhật</button><button class="primary hidden" id="applyUpdate">Cập nhật ngay</button></div></div></section>
+            <section class="panel update-card"><div class="version-box"><span>Phiên bản hiện tại</span><b>v<?=htmlspecialchars($appVersion)?></b><small>Stable channel · GitHub Releases</small></div><div class="update-info" id="updateInfo"><h2>Sẵn sàng kiểm tra cập nhật</h2><p>TMS AI Router sẽ giữ nguyên SQLite, master key và toàn bộ thư mục <code>storage/</code>.</p><div class="update-actions"><button class="primary" id="checkUpdate">Kiểm tra cập nhật</button><button class="primary hidden" id="applyUpdate">Cập nhật ngay</button></div></div></section>
         </section>
     </main>
 </div>
@@ -77,5 +78,5 @@
 <div class="modal-actions"><button type="button" class="ghost" id="cancelProvider">Hủy</button><button type="submit" class="primary">Lưu provider</button></div></form></dialog>
 
 <script>window.TMS_INITIAL_SUMMARY=<?=json_encode($summary,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)?>;</script>
-<script src="/assets/app.js?v=1.1.0"></script>
+<script src="/assets/app.js?v=<?=htmlspecialchars($appVersion,ENT_QUOTES)?>"></script>
 </body></html>
