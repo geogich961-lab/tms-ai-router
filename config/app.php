@@ -1,7 +1,7 @@
 <?php
 return [
     'name' => 'TMS AI Router',
-    'version' => '1.1.0',
+    'version' => '1.1.1',
     'timezone' => 'Asia/Ho_Chi_Minh',
     'db_path' => dirname(__DIR__) . '/storage/ai-router.sqlite3',
     'master_key_path' => dirname(__DIR__) . '/storage/secure/master.key',
