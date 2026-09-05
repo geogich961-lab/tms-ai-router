@@ -34,6 +34,19 @@ try {
     if ($path === '/v1/responses' && $method === 'POST') { $client = Auth::requireClientKey(); $r = $gateway->responses(App::inputJson(), $client); App::json($r['body'], $r['status']); }
 
     Auth::requireAdmin();
+
+    // Rewrite-safe Update Center transport for TMS OS/Nginx environments where nested API paths can be rewritten unexpectedly.
+    $action = (string)($_GET['_tms_action'] ?? '');
+    if ($action === 'update-check' && $method === 'GET') {
+        try { App::json(['ok' => true, 'update' => $updates->check()]); }
+        catch (Throwable $e) { App::json(['ok' => false, 'error' => $e->getMessage()], 502); }
+    }
+    if ($action === 'update-apply' && $method === 'POST') {
+        App::verifyCsrf();
+        try { App::json($updates->apply()); }
+        catch (Throwable $e) { App::json(['ok' => false, 'error' => $e->getMessage()], 500); }
+    }
+
     if ($path === '/admin/api/status') App::json($usage->summary());
     if ($path === '/admin/api/provider' && $method === 'GET') { $r = $providers->find((int)($_GET['id'] ?? 0)); if (!$r) App::json(['error' => 'Provider không tồn tại.'], 404); $r['api_key'] = $r['api_key'] !== '' ? '••••••••' : ''; App::json($r); }
     if ($path === '/admin/api/provider/save' && $method === 'POST') { App::verifyCsrf(); try { App::json(['ok' => true, 'id' => $providers->save(App::inputJson())]); } catch (Throwable $e) { App::json(['ok' => false, 'error' => $e->getMessage()], 422); } }
