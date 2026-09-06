@@ -35,17 +35,44 @@ try {
 
     Auth::requireAdmin();
 
-    // Rewrite-safe Update Center transport for TMS OS/Nginx environments where nested API paths can be rewritten unexpectedly.
-    $action = (string)($_GET['_tms_action'] ?? '');
-    if ($action === 'update-check' && $method === 'GET') {
-        try { App::json(['ok' => true, 'update' => $updates->check()]); }
-        catch (Throwable $e) { App::json(['ok' => false, 'error' => $e->getMessage()], 502); }
-    }
-    if ($action === 'update-apply' && $method === 'POST') {
+    // V1.2.0: all dashboard AJAX can travel through POST / with a custom action header.
+    // This avoids nested /admin/api rewrites and query-string rewriting on TMS OS/Nginx/Cloudflare.
+    $rootAction = trim((string)($_SERVER['HTTP_X_TMS_ACTION'] ?? ''));
+    if ($path === '/' && $method === 'POST' && $rootAction !== '') {
         App::verifyCsrf();
-        try { App::json($updates->apply()); }
-        catch (Throwable $e) { App::json(['ok' => false, 'error' => $e->getMessage()], 500); }
+        $data = App::inputJson();
+        switch ($rootAction) {
+            case 'status': App::json(['ok' => true, 'data' => $usage->summary()]);
+            case 'provider-get':
+                $r = $providers->find((int)($data['id'] ?? 0));
+                if (!$r) App::json(['ok' => false, 'error' => 'Provider không tồn tại.'], 404);
+                $r['api_key'] = $r['api_key'] !== '' ? '••••••••' : '';
+                App::json(['ok' => true, 'data' => $r]);
+            case 'provider-save':
+                try { App::json(['ok' => true, 'id' => $providers->save($data)]); }
+                catch (Throwable $e) { App::json(['ok' => false, 'error' => $e->getMessage()], 422); }
+            case 'provider-delete': $providers->delete((int)($data['id'] ?? 0)); App::json(['ok' => true]);
+            case 'key-create': App::json(['ok' => true, 'key' => $keys->create((string)($data['name'] ?? 'Default'))]);
+            case 'key-revoke': $keys->revoke((int)($data['id'] ?? 0)); App::json(['ok' => true]);
+            case 'settings-save':
+                $v = (string)($data['routing_strategy'] ?? 'priority');
+                if (!in_array($v, ['priority','round_robin','least_used','quota_first'], true)) $v = 'priority';
+                $s = App::db()->prepare("INSERT INTO settings(key,value) VALUES('routing_strategy',:v) ON CONFLICT(key) DO UPDATE SET value=excluded.value");
+                $s->bindValue(':v', $v, SQLITE3_TEXT); $s->execute(); App::json(['ok' => true]);
+            case 'update-check':
+                try { App::json(['ok' => true, 'update' => $updates->check()]); }
+                catch (Throwable $e) { App::json(['ok' => false, 'error' => $e->getMessage()], 502); }
+            case 'update-apply':
+                try { App::json($updates->apply()); }
+                catch (Throwable $e) { App::json(['ok' => false, 'error' => $e->getMessage()], 500); }
+            default: App::json(['ok' => false, 'error' => 'Dashboard action không hợp lệ.'], 404);
+        }
     }
+
+    // Legacy transports kept for compatibility with v1.1.x browser caches/clients.
+    $action = (string)($_GET['_tms_action'] ?? '');
+    if ($action === 'update-check' && $method === 'GET') { try { App::json(['ok' => true, 'update' => $updates->check()]); } catch (Throwable $e) { App::json(['ok' => false, 'error' => $e->getMessage()], 502); } }
+    if ($action === 'update-apply' && $method === 'POST') { App::verifyCsrf(); try { App::json($updates->apply()); } catch (Throwable $e) { App::json(['ok' => false, 'error' => $e->getMessage()], 500); } }
 
     if ($path === '/admin/api/status') App::json($usage->summary());
     if ($path === '/admin/api/provider' && $method === 'GET') { $r = $providers->find((int)($_GET['id'] ?? 0)); if (!$r) App::json(['error' => 'Provider không tồn tại.'], 404); $r['api_key'] = $r['api_key'] !== '' ? '••••••••' : ''; App::json($r); }
