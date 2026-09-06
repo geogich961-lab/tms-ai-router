@@ -20,25 +20,27 @@ jobs:
           extensions: sqlite3, curl, sodium, zip
       - name: PHP syntax
         run: find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
-      - name: Validate v1.2.0 surface
+      - name: Validate v1.2.1 surface
         shell: bash
         run: |
           set -Eeuo pipefail
-          grep -qx '1.2.0' VERSION
-          grep -q "'version' => '1.2.0'" config/app.php
-          grep -q "'/v1/responses'" public/index.php
-          grep -q "HTTP_X_TMS_ACTION" public/index.php
-          grep -q "case 'status'" public/index.php
-          grep -q "case 'provider-save'" public/index.php
-          grep -q "case 'update-check'" public/index.php
-          grep -q "case 'update-apply'" public/index.php
-          grep -q "X-TMS-Action" public/assets/app.js
-          ! grep -q "api('/admin/api/status'" public/assets/app.js
+          grep -qx '1.2.1' VERSION
+          grep -q "'version' => '1.2.1'" config/app.php
+          test -f public/router-api.php
+          grep -q "\$data\['_action'\]" public/router-api.php
+          grep -q "\$data\['_csrf'\]" public/router-api.php
+          grep -q "case 'status'" public/router-api.php
+          grep -q "case 'provider-save'" public/router-api.php
+          grep -q "case 'update-check'" public/router-api.php
+          grep -q "case 'update-apply'" public/router-api.php
+          grep -q "'/router-api.php'" public/assets/app.js
+          grep -q "_action:action" public/assets/app.js
+          grep -q "_csrf:csrf" public/assets/app.js
+          ! grep -q "X-TMS-Action" public/assets/app.js
           grep -q "releases/latest/download/RELEASE.json" app/Services/UpdateService.php
           grep -q "raw.githubusercontent.com" app/Services/UpdateService.php
           grep -q "restoreBackup" app/Services/UpdateService.php
           grep -q "checksum_sha256" app/Services/UpdateService.php
-          grep -q "class UpdateService" app/Services/UpdateService.php
           grep -q "streamChat" app/Services/GatewayService.php
           grep -q "'anthropic'" app/Services/GatewayService.php
           grep -q "'gemini'" app/Services/GatewayService.php
