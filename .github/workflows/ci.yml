@@ -20,19 +20,24 @@ jobs:
           extensions: sqlite3, curl, sodium, zip
       - name: PHP syntax
         run: find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
-      - name: Validate v1.1.2 surface
+      - name: Validate v1.2.0 surface
         shell: bash
         run: |
-          grep -qx '1.1.2' VERSION
-          grep -q "'version' => '1.1.2'" config/app.php
+          set -Eeuo pipefail
+          grep -qx '1.2.0' VERSION
+          grep -q "'version' => '1.2.0'" config/app.php
           grep -q "'/v1/responses'" public/index.php
-          grep -q "'_tms_action'" public/index.php
-          grep -q "update-check" public/index.php
-          grep -q "update-apply" public/index.php
-          grep -q "?_tms_action=update-check" public/assets/app.js
-          grep -q "?_tms_action=update-apply" public/assets/app.js
-          grep -q 'data-version=' views/dashboard.php
-          grep -q 'app.js?v=' views/dashboard.php
+          grep -q "HTTP_X_TMS_ACTION" public/index.php
+          grep -q "case 'status'" public/index.php
+          grep -q "case 'provider-save'" public/index.php
+          grep -q "case 'update-check'" public/index.php
+          grep -q "case 'update-apply'" public/index.php
+          grep -q "X-TMS-Action" public/assets/app.js
+          ! grep -q "api('/admin/api/status'" public/assets/app.js
+          grep -q "releases/latest/download/RELEASE.json" app/Services/UpdateService.php
+          grep -q "raw.githubusercontent.com" app/Services/UpdateService.php
+          grep -q "restoreBackup" app/Services/UpdateService.php
+          grep -q "checksum_sha256" app/Services/UpdateService.php
           grep -q "class UpdateService" app/Services/UpdateService.php
           grep -q "streamChat" app/Services/GatewayService.php
           grep -q "'anthropic'" app/Services/GatewayService.php
