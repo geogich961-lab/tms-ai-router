@@ -4,7 +4,7 @@ declare(strict_types=1);
 foreach ([
     'app/Core/App.php','app/Core/Auth.php','app/Core/Crypto.php',
     'app/Services/ProviderService.php','app/Services/UsageService.php','app/Services/ClientKeyService.php',
-    'app/Services/GatewayService.php','app/Services/UpdateService.php'
+    'app/Services/GatewayService.php','app/Services/UpdateService.php','app/Services/SafeUpdateService.php'
 ] as $f) require dirname(__DIR__) . '/' . $f;
 
 use TmsAi\Core\App;
@@ -12,7 +12,7 @@ use TmsAi\Core\Auth;
 use TmsAi\Services\ProviderService;
 use TmsAi\Services\UsageService;
 use TmsAi\Services\ClientKeyService;
-use TmsAi\Services\UpdateService;
+use TmsAi\Services\SafeUpdateService;
 
 try {
     App::boot();
@@ -34,7 +34,7 @@ try {
     $providers = new ProviderService();
     $usage = new UsageService();
     $keys = new ClientKeyService();
-    $updates = new UpdateService();
+    $updates = new SafeUpdateService();
 
     switch ($action) {
         case 'ping':
@@ -70,6 +70,8 @@ try {
         case 'update-apply':
             try { App::json($updates->apply()); }
             catch (Throwable $e) { App::json(['ok' => false, 'error' => $e->getMessage()], 500); }
+        case 'update-status':
+            App::json(['ok' => true, 'status' => $updates->status()]);
         default:
             App::json(['ok' => false, 'error' => 'Dashboard action không hợp lệ.'], 404);
     }
