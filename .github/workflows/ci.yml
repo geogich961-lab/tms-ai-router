@@ -20,26 +20,32 @@ jobs:
           extensions: sqlite3, curl, sodium, zip
       - name: PHP syntax
         run: find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
-      - name: Validate v1.2.1 surface
+      - name: Shell syntax
+        run: bash -n scripts/hot-update-worker.sh
+      - name: Validate v1.2.2 safe update surface
         shell: bash
         run: |
           set -Eeuo pipefail
-          grep -qx '1.2.1' VERSION
-          grep -q "'version' => '1.2.1'" config/app.php
+          grep -qx '1.2.2' VERSION
+          grep -q "'version' => '1.2.2'" config/app.php
           test -f public/router-api.php
-          grep -q "\$data\['_action'\]" public/router-api.php
-          grep -q "\$data\['_csrf'\]" public/router-api.php
-          grep -q "case 'status'" public/router-api.php
-          grep -q "case 'provider-save'" public/router-api.php
-          grep -q "case 'update-check'" public/router-api.php
-          grep -q "case 'update-apply'" public/router-api.php
+          test -f app/Services/SafeUpdateService.php
+          test -f scripts/hot-update-worker.sh
+          grep -q "SafeUpdateService" public/router-api.php
+          grep -q "case 'update-status'" public/router-api.php
+          grep -q "nohup sh" app/Services/SafeUpdateService.php
+          grep -q "Không restart PHP/Nginx/Tunnel" app/Services/SafeUpdateService.php
+          grep -q "sleep 2" scripts/hot-update-worker.sh
+          grep -q "rollback" scripts/hot-update-worker.sh
+          grep -q "storage/backups/code-" scripts/hot-update-worker.sh
+          ! grep -q "nginx -s reload" scripts/hot-update-worker.sh
+          ! grep -q "tms-php-engine" scripts/hot-update-worker.sh
+          ! grep -q "cloudflared" scripts/hot-update-worker.sh
           grep -q "'/router-api.php'" public/assets/app.js
-          grep -q "_action:action" public/assets/app.js
-          grep -q "_csrf:csrf" public/assets/app.js
-          ! grep -q "X-TMS-Action" public/assets/app.js
+          grep -q "update-status" public/assets/app.js
+          grep -q "Updater nền" public/assets/app.js
           grep -q "releases/latest/download/RELEASE.json" app/Services/UpdateService.php
           grep -q "raw.githubusercontent.com" app/Services/UpdateService.php
-          grep -q "restoreBackup" app/Services/UpdateService.php
           grep -q "checksum_sha256" app/Services/UpdateService.php
           grep -q "streamChat" app/Services/GatewayService.php
           grep -q "'anthropic'" app/Services/GatewayService.php
