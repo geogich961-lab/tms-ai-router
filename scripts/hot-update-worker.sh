@@ -11,12 +11,18 @@ PREV="$CACHE/prev-$TOKEN"
 BACKUP="$ROOT/storage/backups/code-$(date +%Y%m%d-%H%M%S)-$VERSION"
 SWAPPED="$CACHE/swapped-$TOKEN.txt"
 PATHS="app config database public views scripts VERSION README.md install-tms-os.sh nginx.example.conf .gitignore"
+TMS_STATE="${HOME:-/data/data/com.termux/files/home}/.tms-os"
+TMS_LOCK="$TMS_STATE/external-update.lock"
 
 json_status() {
   state="$1"; message="$2"
   safe_msg=$(printf '%s' "$message" | sed 's/\\/\\\\/g;s/"/\\"/g')
   printf '{"state":"%s","version":"%s","message":"%s","at":%s}\n' "$state" "$VERSION" "$safe_msg" "$(date +%s)" > "$STATUS.tmp"
   mv "$STATUS.tmp" "$STATUS"
+}
+
+release_lock() {
+  rm -f "$TMS_LOCK" 2>/dev/null || true
 }
 
 rollback() {
@@ -31,10 +37,14 @@ rollback() {
       fi
     done < "$SWAPPED"
   fi
+  release_lock
   json_status failed "Cập nhật thất bại và đã rollback source. Không restart PHP, Nginx hoặc Tunnel."
   exit 1
 }
 trap rollback HUP INT TERM
+
+mkdir -p "$TMS_STATE" 2>/dev/null || true
+printf 'tms-ai-router %s %s\n' "$VERSION" "$(date +%s)" > "$TMS_LOCK" 2>/dev/null || true
 
 sleep 2
 json_status applying "Đang áp dụng source mới bằng worker nền; không restart dịch vụ dùng chung."
@@ -75,5 +85,6 @@ fi
 
 rm -rf "$PREV" "$STAGE" 2>/dev/null || true
 rm -f "$SWAPPED" "$0" 2>/dev/null || true
+release_lock
 json_status done "Cập nhật hoàn tất. Source cũ đã được backup; storage, SQLite và master key được giữ nguyên."
 exit 0
